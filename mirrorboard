@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+from evdev import UInput, ecodes as e
+from evdev import InputDevice, KeyEvent
+from select import select
+import sys
+
+ui = UInput()
+
+# TODO lookup right input device
+dev = InputDevice('/dev/input/event3')
+dev.grab()
+
+mirror_mode = False
+mirror_used = False
+mirror_keys = {
+    e.KEY_Q: e.KEY_P,
+
+# TODO define all mappings here
+# TODO investigate shift handling
+# TODO investigate caps-lock handling (sticky key)
+    # home row
+    e.KEY_CAPSLOCK: e.KEY_ENTER,
+    e.KEY_A: e.KEY_SEMICOLON,
+    e.KEY_S: e.KEY_L,
+    e.KEY_D: e.KEY_K,
+    e.KEY_F: e.KEY_J,
+    e.KEY_G: e.KEY_H
+}
+while True:
+    r,w,x = select([dev], [], [])
+    for event in dev.read():
+        if event.code == e.KEY_SPACE:
+            if event.value == KeyEvent.key_up:
+                mirror_mode = False
+                if not mirror_used:
+                    event.value = KeyEvent.key_down
+                    ui.write_event(event)
+                    event.value = KeyEvent.key_up
+                    ui.write_event(event)
+                mirror_used = False
+            #if event.value == KeyEvent.key_hold:
+                #mirror_mode = False
+                #mirror_used = False
+                #ui.write_event(event)
+            if event.value == KeyEvent.key_down:
+                mirror_mode = True
+        else:
+            if mirror_mode:
+                if event.code in mirror_keys:
+                    mirror_used = True
+                    event.code = mirror_keys[event.code]
+            ui.write_event(event)
+# TODO remove panic key "m"
+            if event.value == e.KEY_M:
+                dev.ungrab()
+                sys.exit(0)
