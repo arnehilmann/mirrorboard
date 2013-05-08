@@ -5,28 +5,61 @@ from evdev import InputDevice, KeyEvent
 from select import select
 import sys
 
-ui = UInput()
+import glob
+input_device = None
+for kbddevice in glob.glob('/dev/input/by-path/*-event-kbd'):
+    print "keyboard device '%s' found" % kbddevice
+    if not input_device:
+        input_device = kbddevice
+print "binding to %s" % input_device
 
-# TODO lookup right input device
-dev = InputDevice('/dev/input/event3')
+ui = UInput()
+dev = InputDevice(input_device)
 dev.grab()
 
 mirror_mode = False
 mirror_used = False
 mirror_keys = {
-    e.KEY_Q: e.KEY_P,
-
-# TODO define all mappings here
 # TODO investigate shift handling
 # TODO investigate caps-lock handling (sticky key)
+    # number row
+    e.KEY_GRAVE: e.KEY_ESC,
+    e.KEY_1: e.KEY_EQUAL,
+    e.KEY_2: e.KEY_MINUS,
+    e.KEY_3: e.KEY_0,
+    e.KEY_4: e.KEY_9,
+    e.KEY_5: e.KEY_8,
+    e.KEY_6: e.KEY_7,
+
+    # top row
+    e.KEY_TAB: e.KEY_BACKSPACE,
+    e.KEY_Q: e.KEY_P,
+    e.KEY_W: e.KEY_O,
+    e.KEY_E: e.KEY_I,
+    e.KEY_R: e.KEY_U,
+    e.KEY_T: e.KEY_Y,   # us layout ;o)
+
     # home row
     e.KEY_CAPSLOCK: e.KEY_ENTER,
     e.KEY_A: e.KEY_SEMICOLON,
     e.KEY_S: e.KEY_L,
     e.KEY_D: e.KEY_K,
     e.KEY_F: e.KEY_J,
-    e.KEY_G: e.KEY_H
+    e.KEY_G: e.KEY_H,
+
+    # bottom row
+    #e.KEY_: e.KEY_,
+    e.KEY_Z: e.KEY_SLASH,
+    e.KEY_X: e.KEY_DOT,
+    e.KEY_C: e.KEY_COMMA,
+    e.KEY_V: e.KEY_M,
+    e.KEY_B: e.KEY_N
+
 }
+for key in mirror_keys.keys():
+    mapped = mirror_keys[key]
+    mirror_keys[mapped] = key
+
 while True:
     r,w,x = select([dev], [], [])
     for event in dev.read():
@@ -47,9 +80,10 @@ while True:
                 mirror_mode = True
         else:
             if mirror_mode:
-                if event.code in mirror_keys:
-                    mirror_used = True
-                    event.code = mirror_keys[event.code]
+                if event.value in [KeyEvent.key_up, KeyEvent.key_down]:
+                    if event.code in mirror_keys:
+                        mirror_used = True
+                        event.code = mirror_keys[event.code]
             ui.write_event(event)
 # TODO remove panic key "m"
             if event.value == e.KEY_M:
